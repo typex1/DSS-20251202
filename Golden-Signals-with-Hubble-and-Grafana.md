@@ -406,3 +406,144 @@ This is a well-configured Kubernetes cluster optimized for observability and net
 - **NodePort access** to Grafana on port 32042 for easy dashboard access
 
 The cluster is production-ready from an observability standpoint, with comprehensive monitoring of both infrastructure and network layers.
+
+------------------
+
+# Jobs Application Analysis - tenant-jobs namespace
+
+## Overview
+A microservices-based job application platform that handles job postings and resume/applicant management using event-driven architecture.
+
+## Architecture Components
+
+### Core Services:
+1. **coreapi** - Central REST API service
+   - Endpoints: /applicants, /jobs
+   - Storage: Elasticsearch
+   - Port: 9080
+
+2. **loader** - Resume producer
+   - Generates synthetic resume data
+   - Publishes to Kafka topic 'resumes'
+   - Port: 50051 (gRPC)
+
+3. **resumes** - Resume consumer
+   - Consumes from Kafka 'resumes' topic
+   - Processes and stores via coreapi
+   - Indexes in Elasticsearch
+
+4. **recruiter** - Recruiter interface
+   - Interacts with coreapi
+   - Periodic requests (10 configured)
+   - Port: 9080
+
+5. **jobposting** - Job posting management
+   - Manages job listings
+   - Connects to Elasticsearch and coreapi
+   - Port: 9080
+
+6. **crawler** - External data crawler
+   - Crawls api.github.com
+   - Interval: 0.5-5 seconds
+
+### Infrastructure:
+- Elasticsearch (master node)
+- Kafka + Zookeeper (Strimzi managed)
+- Kafka topics: resumes, __consumer_offsets, __strimzi-topic-operator-kstreams-topic-store-changelog, __strimzi_store_topic
+
+### Data Storage:
+- Elasticsearch indices: applicants, jobs, analytics, .geoip_databases
+- Current data: 134+ applicants, 2 job postings
+
+## Data Flow
+1. Loader generates resumes → Kafka 'resumes' topic
+2. Resumes service consumes → coreapi → Elasticsearch
+3. Recruiter/jobposting services query applicants and jobs
+4. Crawler enriches from external sources
+
+## Commands Used for Analysis
+
+### List all resources:
+kubectl get all -n tenant-jobs
+
+### Check deployments:
+kubectl describe deployment coreapi -n tenant-jobs | head -50
+kubectl describe deployment resumes -n tenant-jobs | head -50
+kubectl describe deployment recruiter -n tenant-jobs | head -50
+kubectl describe deployment loader -n tenant-jobs | head -50
+kubectl describe deployment crawler -n tenant-jobs | head -50
+kubectl describe deployment jobposting -n tenant-jobs | head -50
+
+### Check logs:
+kubectl logs -n tenant-jobs deployment/coreapi --tail=20
+kubectl logs -n tenant-jobs deployment/resumes --tail=20
+kubectl logs -n tenant-jobs deployment/recruiter --tail=15
+kubectl logs -n tenant-jobs deployment/loader --tail=20
+kubectl logs -n tenant-jobs deployment/jobposting --tail=15
+
+### Check Kafka topics:
+kubectl exec -n tenant-jobs jobs-app-kafka-0 -- bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+### Check Elasticsearch indices:
+kubectl exec -n tenant-jobs elasticsearch-master-0 -- curl -s -u elastic:changeme http://localhost:9200/_cat/indices?v
+
+### Query Elasticsearch data:
+kubectl exec -n tenant-jobs elasticsearch-master-0 -- curl -s -u elastic:changeme http://localhost:9200/applicants/_search?size=2 | jq .
+kubectl exec -n tenant-jobs elasticsearch-master-0 -- curl -s -u elastic:changeme http://localhost:9200/jobs/_search?size=2 | jq .
+
+### Test API endpoints:
+kubectl exec -n tenant-jobs deployment/coreapi -- curl -s http://localhost:9080/applicants | jq . | head -30
+kubectl exec -n tenant-jobs deployment/coreapi -- curl -s http://localhost:9080/jobs | jq .
+
+## Sample Data
+
+### Jobs:
+- Job 1: Software Engineer at Isovalent
+- Job 2: Designer at Google
+
+### Applicants (examples):
+- Jon Snow (26, male, black hair, address: 17 The Wall, North)
+- Richard Hendricks (26, brown hair, address: Erlich's Hacker Hostel)
+- Various generated applicants with synthetic data (names, addresses, ages, demographics)
+
+## Features
+- Event-driven architecture with Kafka
+- Elasticsearch for search and storage
+- OpenTelemetry tracing support
+- Synthetic data generation for testing
+- Microservices pattern with service mesh capabilities
+
+-------------
+
+# Helm deployment:
+Helm Command Used:
+Based on the files present and the deployment state, the command used was:
+```bash
+helm install jobs-app /root/helm/jobs-app.tgz \
+  --namespace tenant-jobs \
+  --values /root/helm/jobs-app-values.yaml
+```
+
+Chart Components:
+The chart includes dependencies for:
+- strimzi-kafka-operator (v0.38.0) - for Kafka management
+- elasticsearch (v7.17.3) - for search functionality
+
+Deployed Services:
+The values file configures these microservices with 1 replica each:
+- recruiter
+- jobposting
+- coreapi (with error simulation: 1% error rate, 10% sleep rate)
+- crawler (with configurable crawl frequency)
+- resumes
+- loader
+- kafka (2 partitions)
+- elasticsearch (v7.17.26)
+
+Network Configuration:
+- Network policies enabled
+- HTTP ingress visibility enabled
+- Kafka egress visibility disabled
+
+The deployment appears to be part of a lab/workshop environment (based on .lab-assistant.yaml), and the chart was packaged as a .tgz file that was later 
+backed up to S3.
