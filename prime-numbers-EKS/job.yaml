@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prime-calculator
+spec:
+  template:
+    spec:
+      containers:
+      - name: primes
+        image: prime-calculator:latest
+        imagePullPolicy: Never
+        volumeMounts:
+        - name: node-tmp
+          mountPath: /tmp
+      volumes:
+      - name: node-tmp
+        hostPath:
+          path: /tmp
+          type: Directory
+      restartPolicy: Never
+  backoffLimit: 3
