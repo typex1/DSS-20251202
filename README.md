@@ -1,5 +1,7 @@
 # DSS-20251202
 
+ECS cluster architecture example:
+
 ```mermaid
 graph TB
     subgraph "ECS Cluster"
