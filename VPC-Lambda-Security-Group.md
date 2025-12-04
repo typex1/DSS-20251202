@@ -5,34 +5,34 @@ graph TB
     subgraph "AWS Account"
         subgraph "VPC (10.0.0.0/16)"
             subgraph "Private Subnet A (10.0.1.0/24)"
-                EC2A[EC2 Instance A<br/>10.0.1.10]
-                EC2B[EC2 Instance B<br/>10.0.1.20]
+                EC2A[EC2 Instance A10.0.1.10]
+                EC2B[EC2 Instance B10.0.1.20]
             end
             
             subgraph "Private Subnet B (10.0.2.0/24)"
-                EC2C[EC2 Instance C<br/>10.0.2.10]
-                HyperplaneENI[Hyperplane ENI<br/>10.0.2.100<br/>🔗 Managed by Lambda Service]
+                EC2C[EC2 Instance C10.0.2.10]
+                HyperplaneENI[Hyperplane ENI10.0.2.100🔗 Managed by Lambda Service]
             end
             
-            SG1[Security Group: Lambda-SG<br/>📤 Outbound: All traffic<br/>📥 Inbound: None]
-            SG2[Security Group: EC2-SG<br/>📤 Outbound: All traffic<br/>📥 Inbound: Port 3306 from Lambda-SG]
+            SG1[Security Group: Lambda-SG📤 Outbound: All traffic📥 Inbound: None]
+            SG2[Security Group: EC2-SG📤 Outbound: All traffic📥 Inbound: Port 3306 from Lambda-SG]
         end
         
         subgraph "Lambda Service VPC (AWS Managed)"
-            Lambda1[Lambda Function 1<br/>VPC Config: Subnet B + Lambda-SG]
-            Lambda2[Lambda Function 2<br/>VPC Config: Subnet B + Lambda-SG]
-            Lambda3[Lambda Function 3<br/>VPC Config: Subnet A + Lambda-SG]
+            Lambda1[Lambda Function 1VPC Config: Subnet B + Lambda-SG]
+            Lambda2[Lambda Function 2VPC Config: Subnet B + Lambda-SG]
+            Lambda3[Lambda Function 3VPC Config: Subnet A + Lambda-SG]
         end
     end
     
     %% Relationships
     Lambda1 -.->|Network Tunnel| HyperplaneENI
     Lambda2 -.->|Network Tunnel| HyperplaneENI
-    Lambda3 -.->|Creates separate ENI<br/>(different subnet)| EC2A
+    Lambda3 -.->|Creates separate ENI 'different subnet'| EC2A
     
-    HyperplaneENI -->|Database Connection<br/>Port 3306| EC2A
-    HyperplaneENI -->|Database Connection<br/>Port 3306| EC2B
-    HyperplaneENI -->|Database Connection<br/>Port 3306| EC2C
+    HyperplaneENI -->|Database ConnectionPort 3306| EC2A
+    HyperplaneENI -->|Database ConnectionPort 3306| EC2B
+    HyperplaneENI -->|Database ConnectionPort 3306| EC2C
     
     %% Security Group Associations
     HyperplaneENI -.->|Associated with| SG1
